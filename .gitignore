@@ -4,12 +4,12 @@ coverage
 coverage.json
 typechain
 typechain-types
+crs
 
 #Hardhat files
 cache
 artifacts
 
 #Circuit builds
-proofs
-build
-
+target
+circuits

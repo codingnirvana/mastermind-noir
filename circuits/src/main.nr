@@ -25,10 +25,10 @@ fn main(
         if (soln[i] > 9) | (soln[i] == 0) {
             invalidInputFlag = 0;
         } 
-        constrain invalidInputFlag == 1;
+        assert(invalidInputFlag == 1);
         for j in (i+1)..4 { // Check that the guess and solution digits are unique
-            constrain guess[i] != guess[j];
-            constrain soln[i] != soln[j];
+            assert(guess[i] != guess[j]);
+            assert(soln[i] != soln[j]);
         };
     };
 
@@ -49,12 +49,12 @@ fn main(
         };
     };
 
-    constrain numBlow == blow;
+    assert(numBlow == blow);
 
-    constrain numHit == hit;
+    assert(numHit == hit);
 
     let privSolnHash = std::hash::pedersen([salt as Field, solnA as Field, solnB as Field, solnC as Field, solnD as Field]);
 
-    constrain solnHash == privSolnHash[0];
+    assert(solnHash == privSolnHash[0]);
 }
     

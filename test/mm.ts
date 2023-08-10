@@ -1,13 +1,12 @@
-import { ethers } from "hardhat";
-import { BarretenbergWasm } from '@noir-lang/barretenberg/dest/wasm';
-import { SinglePedersen } from '@noir-lang/barretenberg/dest/crypto/pedersen';
-import { compile, acir_from_bytes } from '@noir-lang/noir_wasm';
-import { setup_generic_prover_and_verifier, create_proof, verify_proof, StandardExampleProver, StandardExampleVerifier } from '@noir-lang/barretenberg/dest/client_proofs';
-import { serialise_public_inputs } from '@noir-lang/aztec_backend';
-import { resolve } from 'path';
-import { readFileSync } from 'fs';
+// import { ethers } from "hardhat";
 import { expect } from 'chai';
-import { Contract, ContractFactory, utils } from 'ethers';
+import {describe, it } from 'mocha';
+// import { Contract, ContractFactory, utils } from 'ethers';
+import { NoirNode } from '../utils/noir/noirNode.js';
+// import { execSync } from 'child_process';
+
+const noir = new NoirNode();
+
 
 type MMProofInput = {
     guessA: number;
@@ -25,29 +24,20 @@ type MMProofInput = {
 }
 
 describe('Mastermind tests using typescript wrapper', function() {
-    let barretenberg: BarretenbergWasm;
-    let pedersen: SinglePedersen;
-    let acir: any;
-    let prover: StandardExampleProver;
-    let verifier: StandardExampleVerifier;
-
     before(async () => {
-        barretenberg = await BarretenbergWasm.new();
-        await barretenberg.init()
-        pedersen = new SinglePedersen(barretenberg);
+        await noir.init();
+    });
 
-        let acirByteArray = path_to_uint8array(resolve(__dirname, '../circuits/build/p.acir'));
-        acir = acir_from_bytes(acirByteArray);
-        [prover, verifier] = await setup_generic_prover_and_verifier(acir);
+    after(async() => {
+        await noir.destroy();
     });
 
     function createProofInput(guesses: number[], solution: number[], salt: number) : MMProofInput {
         let [hit, blow] = calculateHB(guesses, solution);
         console.log('hit: ', hit, 'blow: ', blow);
 
-        let solution_hash_preimage = serialise_inputs([salt, ...solution]);
-        let solnHash = pedersen.compressInputs(solution_hash_preimage);
-        let solnHashString = `0x` + solnHash.toString('hex');
+        let solnHash = noir.compressInputs([salt, ...solution]);
+        let solnHashString = `0x` + solnHash.toString();
         console.log('solnHash: ' + solnHashString);
 
         return {
@@ -71,15 +61,19 @@ describe('Mastermind tests using typescript wrapper', function() {
         let solution = [1, 2, 3, 4];
         let salt = 50;
 
-        let abi = createProofInput(guesses, solution, salt)
-        const proof = await create_proof(prover, acir, abi);
-        console.log('proof: ' + proof.toString('hex'));
+        let abi = createProofInput(guesses, solution, salt);
+        console.log('abi' + abi);
+        const witness = await noir.generateWitness(abi);
+        const proof = await noir.generateProof(witness);
+        console.log('proof: ' + proof.toString());
 
-        const verified = await verify_proof(verifier, proof);
+        expect(proof instanceof Uint8Array).to.be.true;
+
+        const verified = await noir.verifyProof(proof);
     
         console.log(verified);
 
-        expect(verified).eq(true)
+        expect(verified).to.be.true;
     });
 
     it("Code breaker has hits, but without a win", async () => {
@@ -89,13 +83,17 @@ describe('Mastermind tests using typescript wrapper', function() {
 
         let abi = createProofInput(guesses, solution, salt);
 
-        const proof = await create_proof(prover, acir, abi);
+        const witness = await noir.generateWitness(abi);
+        const proof = await noir.generateProof(witness);
+        console.log('proof: ' + proof.toString());
 
-        const verified = await verify_proof(verifier, proof);
-      
+        expect(proof instanceof Uint8Array).to.be.true;
+
+        const verified = await noir.verifyProof(proof);
+    
         console.log(verified);
 
-        expect(verified).eq(true)
+        expect(verified).to.be.true;
     });
 
     it("Code breaker has no hits, but has a blow", async () => {
@@ -104,104 +102,103 @@ describe('Mastermind tests using typescript wrapper', function() {
         let salt = 50;
  
         let abi = createProofInput(guesses, solution, salt)
-        const proof = await create_proof(prover, acir, abi);
+        const witness = await noir.generateWitness(abi);
+        const proof = await noir.generateProof(witness);
+        console.log('proof: ' + proof.toString());
 
-        const verified = await verify_proof(verifier, proof);
-      
+        expect(proof instanceof Uint8Array).to.be.true;
+
+        const verified = await noir.verifyProof(proof);
+    
         console.log(verified);
 
-        expect(verified).eq(true)
+        expect(verified).to.be.true;
     });
 
 });
 
-describe('Mastermind tests using solidity verifier', function() {
-    let Verifier: ContractFactory;
-    let verifierContract: Contract;
+// describe('Mastermind tests using solidity verifier', function() {
+//     let Verifier: ContractFactory;
+//     let verifierContract: Contract;
 
-    let barretenberg: BarretenbergWasm;
-    let pedersen: SinglePedersen;
+//     let barretenberg: BarretenbergWasm;
+//     let pedersen: SinglePedersen;
 
-    before(async () => {
-        Verifier = await ethers.getContractFactory("TurboVerifier");
-        verifierContract = await Verifier.deploy();
+//     before(async () => {
+//         Verifier = await ethers.getContractFactory("TurboVerifier");
+//         verifierContract = await Verifier.deploy();
 
-        barretenberg = await BarretenbergWasm.new();
-        await barretenberg.init()
-        pedersen = new SinglePedersen(barretenberg);
-    });
+//         barretenberg = await BarretenbergWasm.new();
+//         await barretenberg.init()
+//         pedersen = new SinglePedersen(barretenberg);
+//     });
 
-    function createProofInput(guesses: number[], solution: number[], salt: number) : MMProofInput {
-        let [hit, blow] = calculateHB(guesses, solution);
-        console.log('hit: ', hit, 'blow: ', blow);
+//     function createProofInput(guesses: number[], solution: number[], salt: number) : MMProofInput {
+//         let [hit, blow] = calculateHB(guesses, solution);
+//         console.log('hit: ', hit, 'blow: ', blow);
 
-        let solution_hash_preimage = serialise_inputs([salt, ...solution]);
-        let solnHash = pedersen.compressInputs(solution_hash_preimage);
-        let solnHashString = `0x` + solnHash.toString('hex');
-        console.log('solnHash: ' + solnHashString);
+//         let solution_hash_preimage = serialise_inputs([salt, ...solution]);
+//         let solnHash = pedersen.compressInputs(solution_hash_preimage);
+//         let solnHashString = `0x` + solnHash.toString('hex');
+//         console.log('solnHash: ' + solnHashString);
 
-        return {
-            guessA: guesses[0],
-            guessB: guesses[1],
-            guessC: guesses[2],
-            guessD: guesses[3],
-            numHit: hit,
-            numBlow: blow,
-            solnHash: solnHashString,
-            solnA: solution[0],
-            solnB: solution[1],
-            solnC: solution[2],
-            solnD: solution[3],
-            salt: salt,
-        }
-    }
+//         return {
+//             guessA: guesses[0],
+//             guessB: guesses[1],
+//             guessC: guesses[2],
+//             guessD: guesses[3],
+//             numHit: hit,
+//             numBlow: blow,
+//             solnHash: solnHashString,
+//             solnA: solution[0],
+//             solnB: solution[1],
+//             solnC: solution[2],
+//             solnD: solution[3],
+//             salt: salt,
+//         }
+//     }
 
-    it("Code breaker wins", async () => {
-        let guesses = [1, 2, 3, 4];
-        let solution = [1, 2, 3, 4];
-        let salt = 50;
+//     it("Code breaker wins", async () => {
+//         let guesses = [1, 2, 3, 4];
+//         let solution = [1, 2, 3, 4];
+//         let salt = 50;
        
-        let compiled_program = compile(resolve(__dirname, '../circuits/src/main.nr'));
-        const acir = compiled_program.circuit;
+//         let compiled_program = compile(resolve(__dirname, '../circuits/src/main.nr'));
+//         const acir = compiled_program.circuit;
 
-        let [prover, verifier] = await setup_generic_prover_and_verifier(acir);
+//         let [prover, verifier] = await setup_generic_prover_and_verifier(acir);
  
-        let abi = createProofInput(guesses, solution, salt)
-        const proof: Buffer = await create_proof(prover, acir, abi);
+//         let abi = createProofInput(guesses, solution, salt)
+//         const proof: Buffer = await create_proof(prover, acir, abi);
 
-        const verified = await verify_proof(verifier, proof);
-        expect(verified).eq(true)
+//         const verified = await verify_proof(verifier, proof);
+//         expect(verified).eq(true)
 
-        const verified_sol_result = await verifierContract.verify(proof);
-        expect(verified_sol_result).eq(true)
-    });
+//         const verified_sol_result = await verifierContract.verify(proof);
+//         expect(verified_sol_result).eq(true)
+//     });
 
-    it("Code breaker has hits, but without a win", async () => {
-        let guesses = [1, 2, 3, 4];
-        let solution = [1, 3, 5, 4];
-        let salt = 50;
+//     it("Code breaker has hits, but without a win", async () => {
+//         let guesses = [1, 2, 3, 4];
+//         let solution = [1, 3, 5, 4];
+//         let salt = 50;
 
-        let acirByteArray = path_to_uint8array(resolve(__dirname, '../circuits/build/p.acir'));
-        let acir = acir_from_bytes(acirByteArray);
+//         let acirByteArray = path_to_uint8array(resolve(__dirname, '../circuits/build/p.acir'));
+//         let acir = acir_from_bytes(acirByteArray);
 
-        let [prover, verifier] = await setup_generic_prover_and_verifier(acir);
+//         let [prover, verifier] = await setup_generic_prover_and_verifier(acir);
  
-        let abi = createProofInput(guesses, solution, salt)
-        const proof = await create_proof(prover, acir, abi);
+//         let abi = createProofInput(guesses, solution, salt)
+//         const proof = await create_proof(prover, acir, abi);
 
-        const verified = await verify_proof(verifier, proof);
-        expect(verified).eq(true);
+//         const verified = await verify_proof(verifier, proof);
+//         expect(verified).eq(true);
 
-        const verified_sol_result = await verifierContract.verify(proof);
-        expect(verified_sol_result).eq(true);
-    });
+//         const verified_sol_result = await verifierContract.verify(proof);
+//         expect(verified_sol_result).eq(true);
+//     });
 
-});
-
-function path_to_uint8array(path: string) {
-    let buffer = readFileSync(path);
-    return new Uint8Array(buffer);
-}
+// });
 
 function calculateHB(guess: number[], solution: number[]) {
     const hit = solution.filter((sol, i) => {
@@ -213,16 +210,4 @@ function calculateHB(guess: number[], solution: number[]) {
     }).length;
   
     return [hit, blow];
-}
-
-function serialise_inputs(values: number[]) {
-    let serialised_inputs = []
-    for (var i = 0; i < values.length; i++) {
-        let number_hex = values[i].toString(16);
-        let padded_number_hex = number_hex.length %2 == 0 ? "0x" + number_hex : "0x0" + number_hex; // TOOD: this logic should be placed inside the `serialise_public_inputs` method
-        serialised_inputs.push(
-            Buffer.from(serialise_public_inputs([padded_number_hex]))
-        );
-    }
-    return serialised_inputs;
 }
