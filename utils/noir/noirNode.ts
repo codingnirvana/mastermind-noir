@@ -7,9 +7,9 @@ import {
   newBarretenbergApiAsync,
   RawBuffer,
 } from '@aztec/bb.js/dest/node/index.js';
-import { executeCircuit, compressWitness } from '@noir-lang/acvm_js';
+import { executeCircuit, compressWitness } from '@noir-lang/acvm_js/nodejs/acvm_js';
 import { ethers } from 'ethers'; // I'm lazy so I'm using ethers to pad my input
-import circuit from '../../circuits/target/mastermindnoir.json' assert { type: "json" };
+import circuit from '../../circuits/target/main.json' assert { type: "json" };
 import { Ptr, Fr } from '@aztec/bb.js/dest/node/types/index.js';
 
 
@@ -24,12 +24,15 @@ export class NoirNode {
   async init() {
     this.acirBuffer = Buffer.from(circuit.bytecode, 'base64');
     this.acirBufferUncompressed = decompressSync(this.acirBuffer);
+    
 
     this.api = await newBarretenbergApiAsync(4);
+   
 
     const [exact, total, subgroup] = await this.api.acirGetCircuitSizes(
       this.acirBufferUncompressed,
     );
+
     const subgroupSize = Math.pow(2, Math.ceil(Math.log2(total)));
     const crs = await Crs.new(subgroupSize + 1);
     await this.api.commonInitSlabAllocator(subgroupSize);
@@ -40,6 +43,7 @@ export class NoirNode {
     );
 
     this.acirComposer = await this.api.acirNewAcirComposer(subgroupSize);
+    
   }
 
   async generateWitness(input: any): Promise<Uint8Array> {
