@@ -1,72 +1,75 @@
 // import { ethers } from "hardhat";
 import { expect } from 'chai';
 import {describe, it } from 'mocha';
+import { ethers } from 'ethers'; 
 // import { Contract, ContractFactory, utils } from 'ethers';
 import { NoirNode } from '../utils/noir/noirNode.js';
-// import { execSync } from 'child_process';
+import circuit from '../circuits/target/main.json' assert { type: "json" };
+
 
 const noir = new NoirNode();
 
 
 type MMProofInput = {
-    guessA: number;
-    guessB: number;
-    guessC: number;
-    guessD: number;
-    numHit: number;
-    numBlow: number;
+    guessA: string;
+    guessB: string;
+    guessC: string;
+    guessD: string;
+    numHit: string;
+    numBlow: string;
     solnHash: string;
-    solnA: number;
-    solnB: number;
-    solnC: number;
-    solnD: number;
-    salt: number;
+    solnA: string;
+    solnB: string;
+    solnC: string;
+    solnD: string;
+    salt: string;
 }
 
 describe('Mastermind tests using typescript wrapper', function() {
-    before(async () => {
-        await noir.init();
+    before(async () => {        
+        await noir.init(circuit);
     });
 
     after(async() => {
         await noir.destroy();
     });
 
-    function createProofInput(guesses: number[], solution: number[], salt: number) : MMProofInput {
+    async function createProofInput(guesses: number[], solution: number[], salt: number) :Promise<MMProofInput> {
         let [hit, blow] = calculateHB(guesses, solution);
         console.log('hit: ', hit, 'blow: ', blow);
 
-        let solnHash = noir.compressInputs([salt, ...solution]);
-        let solnHashString = `0x` + solnHash.toString();
-        console.log('solnHash: ' + solnHashString);
+        let padded_guesses = guesses.map(g => ethers.utils.hexZeroPad(`0x${g.toString(16)}`, 32))
+        let padded_solution = solution.map(s => ethers.utils.hexZeroPad(`0x${s.toString(16)}`, 32));
+
+        let solnHash = (await noir.compressInputs([salt, ...solution])).toString();
+        console.log('solnHash: ' + solnHash);
 
         return {
-            guessA: guesses[0],
-            guessB: guesses[1],
-            guessC: guesses[2],
-            guessD: guesses[3],
-            numHit: hit,
-            numBlow: blow,
-            solnHash: solnHashString,
-            solnA: solution[0],
-            solnB: solution[1],
-            solnC: solution[2],
-            solnD: solution[3],
-            salt: salt,
+            guessA: padded_guesses[0],
+            guessB: padded_guesses[1],
+            guessC: padded_guesses[2],
+            guessD: padded_guesses[3],
+            numHit: ethers.utils.hexZeroPad(`0x${hit.toString(16)}`, 32),
+            numBlow: ethers.utils.hexZeroPad(`0x${blow.toString(16)}`, 32),
+            solnHash: solnHash,
+            solnA: padded_solution[0],
+            solnB: padded_solution[1],
+            solnC: padded_solution[2],
+            solnD: padded_solution[3],
+            salt: ethers.utils.hexZeroPad(`0x${salt.toString(16)}`, 32),
         }
-    }
+    }                
 
     it("Code breaker wins, compiled using nargo", async () => {
         let guesses = [1, 2, 3, 4];
         let solution = [1, 2, 3, 4];
         let salt = 50;
 
-        let abi = createProofInput(guesses, solution, salt);
+        let abi = await createProofInput(guesses, solution, salt);
         console.log('abi' + abi);
         const witness = await noir.generateWitness(abi);
         const proof = await noir.generateProof(witness);
-        console.log('proof: ' + proof.toString());
-
+        
         expect(proof instanceof Uint8Array).to.be.true;
 
         const verified = await noir.verifyProof(proof);
@@ -82,11 +85,10 @@ describe('Mastermind tests using typescript wrapper', function() {
         let salt = 50;
 
         let abi = createProofInput(guesses, solution, salt);
-
+        
         const witness = await noir.generateWitness(abi);
         const proof = await noir.generateProof(witness);
-        console.log('proof: ' + proof.toString());
-
+        
         expect(proof instanceof Uint8Array).to.be.true;
 
         const verified = await noir.verifyProof(proof);
@@ -104,8 +106,7 @@ describe('Mastermind tests using typescript wrapper', function() {
         let abi = createProofInput(guesses, solution, salt)
         const witness = await noir.generateWitness(abi);
         const proof = await noir.generateProof(witness);
-        console.log('proof: ' + proof.toString());
-
+        
         expect(proof instanceof Uint8Array).to.be.true;
 
         const verified = await noir.verifyProof(proof);
